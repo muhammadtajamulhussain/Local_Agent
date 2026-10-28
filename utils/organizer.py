@@ -30,14 +30,20 @@ def add_custom_rule(extension, category_path):
         ext = "." + ext
     EXTENSION_MAPPING[ext] = category_path
 
-def organize_scanned_files(target_dir, scanned_files, dry_run=True, journal=None):
+def organize_scanned_files(target_dir, scanned_files, dry_run=True, journal=None, errors=None):
     """
     Moves scanned files into their category folders through the safe mover.
 
     With dry_run=True (the default) nothing is touched; the returned plan
     shows exactly what would happen. When applying for real, pass a Journal
     and the whole batch is recorded as one run that can be undone.
-    Returns a list of (source, destination).
+
+    If a single file can't be moved (missing, locked by another program,
+    permission denied), pass an empty list as `errors` and the batch keeps
+    going: each failure is appended as (path, reason). Without `errors`,
+    the first failure is raised.
+
+    Returns a list of (source, destination) for the files that were handled.
     """
     run_id = None
     if journal is not None and not dry_run:
@@ -47,12 +53,18 @@ def organize_scanned_files(target_dir, scanned_files, dry_run=True, journal=None
     for file_info in scanned_files:
         subfolder = EXTENSION_MAPPING.get(file_info["extension"], "Others")
         dest_path = os.path.join(target_dir, subfolder, file_info["filename"])
-        final = move_file(
-            file_info["path"],
-            dest_path,
-            dry_run=dry_run,
-            journal=journal if run_id else None,
-            run_id=run_id,
-        )
+        try:
+            final = move_file(
+                file_info["path"],
+                dest_path,
+                dry_run=dry_run,
+                journal=journal if run_id else None,
+                run_id=run_id,
+            )
+        except OSError as exc:  # includes FileNotFoundError and PermissionError
+            if errors is None:
+                raise
+            errors.append((file_info["path"], str(exc)))
+            continue
         plan.append((file_info["path"], str(final)))
     return plan

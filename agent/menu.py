@@ -41,18 +41,28 @@ def handle_organization_flow():
                 print("No files found or path does not exist.")
                 break
 
-            plan = organize_scanned_files(path, files, dry_run=False, journal=journal)
+            errors = []
+            plan = organize_scanned_files(path, files, dry_run=True, errors=errors)
             print(f"\nPreview: {len(plan)} files will be moved:")
             for src, dst in plan[:20]:
                 print(f"  {os.path.basename(src)} -> {os.path.relpath(dst, path)}")
             if len(plan) > 20:
                 print(f"  ...and {len(plan) - 20} more")
+            if errors:
+                print(f"\n{len(errors)} files can't be moved and will be skipped:")
+                for p, why in errors:
+                    print(f"  {os.path.basename(p)}: {why}")
 
             if input("\nApply these changes? (y/n): ").strip().lower() == "y":
-                organize_scanned_files(path, files, dry_run=False)
+                errors = []
+                organize_scanned_files(path, files, dry_run=False, journal=journal, errors=errors)
                 print("Organization complete.")
+                if errors:
+                    print(f"{len(errors)} files were skipped:")
+                    for p, why in errors:
+                        print(f"  {os.path.basename(p)}: {why}")
             else:
-                print("Cancelled. Nothing was moved.")
+                print("Cancelled. Nothing was changed.")
             break
             
         elif sub_choice == "3":
