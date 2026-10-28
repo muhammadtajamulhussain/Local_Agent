@@ -1,5 +1,6 @@
 import os
-import shutil
+
+from core.safe_mover import move_file
 
 EXTENSION_MAPPING = {
     ".py": os.path.join("Code", "python"),
@@ -29,16 +30,29 @@ def add_custom_rule(extension, category_path):
         ext = "." + ext
     EXTENSION_MAPPING[ext] = category_path
 
-def organize_scanned_files(target_dir, scanned_files):
-    """Quietly moves scanned files into their structured category folders."""
-    for file_info in scanned_files:
-        filename = file_info["filename"]
-        ext = file_info["extension"]
-        file_path = file_info["path"]
+def organize_scanned_files(target_dir, scanned_files, dry_run=True, journal=None):
+    """
+    Moves scanned files into their category folders through the safe mover.
 
-        subfolder = EXTENSION_MAPPING.get(ext, "Others")
-        dest_folder = os.path.join(target_dir, subfolder)
-        os.makedirs(dest_folder, exist_ok=True)
-        
-        dest_path = os.path.join(dest_folder, filename)
-        shutil.move(file_path, dest_path)
+    With dry_run=True (the default) nothing is touched; the returned plan
+    shows exactly what would happen. When applying for real, pass a Journal
+    and the whole batch is recorded as one run that can be undone.
+    Returns a list of (source, destination).
+    """
+    run_id = None
+    if journal is not None and not dry_run:
+        run_id = journal.new_run(f"organize {target_dir}")
+
+    plan = []
+    for file_info in scanned_files:
+        subfolder = EXTENSION_MAPPING.get(file_info["extension"], "Others")
+        dest_path = os.path.join(target_dir, subfolder, file_info["filename"])
+        final = move_file(
+            file_info["path"],
+            dest_path,
+            dry_run=dry_run,
+            journal=journal if run_id else None,
+            run_id=run_id,
+        )
+        plan.append((file_info["path"], str(final)))
+    return plan

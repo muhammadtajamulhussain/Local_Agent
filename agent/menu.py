@@ -1,5 +1,6 @@
 # agent/menu.py
 
+import os
 from utils.scanner import scan_directory
 from utils.organizer import organize_scanned_files, add_custom_rule
 from utils.graph import (
@@ -10,6 +11,10 @@ from utils.graph import (
     get_used_colors, 
     generate_interactive_graph
 )
+from core.journal import Journal
+from core.safe_mover import undo_run
+
+journal = Journal()
 
 def handle_organization_flow():
     """Sub-menu for organizing files and handling custom extensions."""
@@ -32,12 +37,22 @@ def handle_organization_flow():
         elif sub_choice == "2":
             print("Scanning directory...")
             files = scan_directory(path)
-            if files:
-                print(f"Found {len(files)} files. Organizing...")
-                organize_scanned_files(path, files)
+            if not files:
+                print("No files found or path does not exist.")
+                break
+
+            plan = organize_scanned_files(path, files, dry_run=False, journal=journal)
+            print(f"\nPreview: {len(plan)} files will be moved:")
+            for src, dst in plan[:20]:
+                print(f"  {os.path.basename(src)} -> {os.path.relpath(dst, path)}")
+            if len(plan) > 20:
+                print(f"  ...and {len(plan) - 20} more")
+
+            if input("\nApply these changes? (y/n): ").strip().lower() == "y":
+                organize_scanned_files(path, files, dry_run=False)
                 print("Organization complete.")
             else:
-                print("No files found or path does not exist.")
+                print("Cancelled. Nothing was moved.")
             break
             
         elif sub_choice == "3":
@@ -104,6 +119,25 @@ def handle_graph_flow():
         else:
             print("Invalid choice. Please select 1, 2, or 3.")
 
+def handle_undo_flow():
+    """Undo the most recent organization run."""
+    run_id = journal.last_undoable_run()
+    if run_id is None:
+        print("Nothing to undo.")
+        return
+
+    results = undo_run(journal, run_id, dry_run=True)
+    print(f"\nUndo preview for run {run_id}: {len(results)} files")
+    for r in results[:20]:
+        print(f"  [{r.status}] {r.current} -> {r.restored}")
+    if len(results) > 20:
+        print(f"  ...and {len(results) - 20} more")
+
+    if input("\nApply undo? (y/n): ").strip().lower() == "y":
+        undo_run(journal, run_id, dry_run=False)
+        print("Undo complete.")
+    else:
+        print("Cancelled. Nothing was changed.")
 
 def run_agent():
     """Main control center loop."""
@@ -115,7 +149,8 @@ def run_agent():
         print("\n[Main Menu]")
         print("1. Organization of files")
         print("2. Code Graph & Architecture Mapper")
-        print("3. Exit")
+        print("3. Undo Last organization")
+        print("4. Exit")
         
         choice = input("Select an option (1-3): ").strip()
         
@@ -124,10 +159,12 @@ def run_agent():
         elif choice == "2":
             handle_graph_flow()
         elif choice == "3":
+            handle_undo_flow()
+        elif choice == "4":
             print("Shutting down Agent. Goodbye.")
             break
         else:
-            print("Invalid choice. Please enter 1, 2, or 3.")
+            print("Invalid choice. Please enter 1, 2, 3 or 4.")
 
 
 if __name__ == "__main__":
