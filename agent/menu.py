@@ -86,7 +86,7 @@ def handle_graph_flow():
         print("2. View the Graph (Launch Interactive Visualizer)")
         print("3. Back to main menu")
         
-        sub_choice = input("Select an option (1-3): ").strip()
+        sub_choice = input("Select an option (1-4): ").strip()
         
         if sub_choice == "1":
             ext = input("Enter file extension (e.g. .ts or ts): ").strip()
@@ -127,7 +127,7 @@ def handle_graph_flow():
             print("Returning to main menu.")
             break
         else:
-            print("Invalid choice. Please select 1, 2, or 3.")
+            print("Invalid choice. Please select 1, 2, 3 or 4.")
 
 def handle_undo_flow():
     """Undo the most recent organization run."""
